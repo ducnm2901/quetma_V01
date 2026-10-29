@@ -87,7 +87,6 @@
   <div class="absolute bottom-0 left-0 right-0 px-4 py-2 text-center text-xs text-cyan-300 font-medium pointer-events-none z-10" style="background:linear-gradient(transparent,rgba(0,0,0,.85));">
     <span id="scan-hint-text">🎯 Đưa mã vạch / mã QR vào khung ngắm</span>
   </div>
-</div>
 <main class="flex-1 w-full px-4 py-3 space-y-3 overflow-y-auto">
   <div class="flex items-center justify-between px-1">
     <div class="flex items-center gap-2">
@@ -132,7 +131,9 @@
     <span id="save-lbl">Lưu Dữ Liệu</span>
   </button>
 
-  <!-- TIỆN ÍCH MỚI: Kiểm tra trùng / Xuất CSV / Dashboard -->
+  <!-- ═══════════════════════════════════════════════
+       TIỆN ÍCH MỚI: Kiểm tra trùng / Xuất CSV / Dashboard
+  ══════════════════════════════════════════════════ -->
   <div class="grid grid-cols-2 gap-2 px-1">
     <button id="btn-check-dup" onclick="checkDuplicate()"
             class="btn-press rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all duration-200"
@@ -182,12 +183,6 @@
     <ul id="log-list" class="space-y-1.5 max-h-48 overflow-y-auto pr-1"></ul>
   </div>
 </main>
-  <div id="toast" class="hide fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-2xl flex items-center gap-2 max-w-[90vw]">
-    <span id="t-ico"></span>
-    <span id="t-msg"></span>
-  </div>
-</body>
-</html>
 <script>
 const GAS_API = 'https://script.google.com/macros/s/AKfycbyEpHpOQoEm-bl-D8H7xjpQWwm8N7V1SqFJfFOrzG8x-K1WhNOuY-j-Zxcw3jqPk54K/exec';
 const AUTO_SAVE_MS = 2000;
@@ -220,6 +215,7 @@ async function initScanner() {
     if (!html5QrCode) {
       html5QrCode = new Html5Qrcode('reader', { verbose: false });
     }
+    // Thử camera trước (environment) trước, nếu lỗi thì thử camera sau (user)
     let started = false;
     try {
       await startScanner('environment');
@@ -353,7 +349,6 @@ function clearCode() {
   el.style.color = '#4b5563';
   document.getElementById('btn-clr-code').classList.add('hidden');
 }
-
 function toggleAutoSave() {
   autoSaveOn = !autoSaveOn;
   const track = document.getElementById('tog-track');
@@ -418,6 +413,96 @@ async function saveRecord() {
     showToast('Lỗi gửi dữ liệu: ' + (err.message || 'Network error'), 'error');
   }
   setSaving(false);
+}
+// ─── Kiểm tra trùng lặp mã thẻ ──────────────────────────────────
+async function checkDuplicate() {
+  const code = currentCode || '';
+  if (!code) {
+    showToast('Chưa có mã thẻ để kiểm tra!', 'error');
+    return;
+  }
+  try {
+    const params = new URLSearchParams({ action: 'checkDuplicate', barcode: code });
+    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
+    const data = await res.json();
+    if (data && data.success) {
+      if (data.exists) {
+        showToast('⚠️ Mã thẻ đã tồn tại trong hệ thống.', 'error');
+      } else {
+        showToast('✓ Mã thẻ chưa từng được quét.', 'success');
+      }
+    } else {
+      showToast((data && data.message) || 'Lỗi kiểm tra trùng.', 'error');
+    }
+  } catch (err) {
+    console.error('checkDuplicate error:', err);
+    showToast('Lỗi kiểm tra trùng: ' + (err.message || 'Network error'), 'error');
+  }
+}
+
+// ─── Xuất dữ liệu ra CSV ────────────────────────────────────────
+async function exportCSV() {
+  try {
+    showToast('Đang xuất CSV…', 'info');
+    const params = new URLSearchParams({ action: 'export' });
+    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `quetma_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('✓ Đã tải file CSV.', 'success');
+  } catch (err) {
+    console.error('exportCSV error:', err);
+    showToast('Lỗi xuất CSV: ' + (err.message || 'Network error'), 'error');
+  }
+}
+
+// ─── Hiển thị Dashboard (tất cả bản ghi) ────────────────────────
+async function showDashboard() {
+  const panel = document.getElementById('dashboard-panel');
+  const listEl = document.getElementById('dash-list');
+  const countEl = document.getElementById('dash-count');
+  listEl.innerHTML = '<li class="px-2 py-1 text-xs text-gray-400">Đang tải…</li>';
+  countEl.textContent = '–';
+  panel.classList.remove('hidden');
+
+  try {
+    const params = new URLSearchParams({ action: 'getAll' });
+    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
+    const data = await res.json();
+    if (data && data.success) {
+      countEl.textContent = data.count;
+      renderDashboard(data.data || []);
+    } else {
+      listEl.innerHTML = `<li class="px-2 py-1 text-xs text-red-400">${(data && data.message) || 'Lỗi lấy dữ liệu.'}</li>`;
+    }
+  } catch (err) {
+    console.error('showDashboard error:', err);
+    listEl.innerHTML = `<li class="px-2 py-1 text-xs text-red-400">Lỗi: ${err.message || 'Network error'}</li>`;
+  }
+}
+
+function renderDashboard(data) {
+  const listEl = document.getElementById('dash-list');
+  if (!data || data.length === 0) {
+    listEl.innerHTML = '<li class="px-2 py-1 text-xs text-gray-400">Chưa có bản ghi nào.</li>';
+    return;
+  }
+  // Hiển thị tối đa 50 bản ghi gần nhất
+  const items = data.slice(0, 50);
+  listEl.innerHTML = items.map((row, i) => `
+    <li class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-700/30" style="background:rgba(255,255,255,.02);">
+      <span class="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[10px] text-purple-300" style="background:rgba(139,92,246,.15);">${data.length - i}</span>
+      <span class="flex-1 font-mono font-semibold truncate text-cyan-300">${row['Mã thẻ'] || ''}</span>
+      <span class="text-gray-400 truncate max-w-[90px]">${row['Tên khách hàng'] || '—'}</span>
+      <span class="text-[10px] text-gray-500">${row['Thời gian quét'] || ''}</span>
+    </li>
+  `).join('');
 }
 
 function setSaving(on) {
@@ -503,97 +588,15 @@ function showToast(msg, type = 'info') {
   toastTimer = setTimeout(() => t.classList.replace('show', 'hide'), 3000);
 }
 
-if ('wakeLock' in navigator) {
-  navigator.wakeLock.request('screen').catch(() => {});
-}
-</script>
-// ─── Kiểm tra trùng lặp mã thẻ ──────────────────────────────────
-async function checkDuplicate() {
-  const code = currentCode || '';
-  if (!code) {
-    showToast('Chưa có mã thẻ để kiểm tra!', 'error');
-    return;
-  }
-  try {
-    const params = new URLSearchParams({ action: 'checkDuplicate', barcode: code });
-    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
-    const data = await res.json();
-    if (data && data.success) {
-      if (data.exists) {
-        showToast('⚠️ Mã thẻ đã tồn tại trong hệ thống.', 'error');
-      } else {
-        showToast('✓ Mã thẻ chưa từng được quét.', 'success');
-      }
-    } else {
-      showToast((data && data.message) || 'Lỗi kiểm tra trùng.', 'error');
+  <div id="toast" class="hide fixed bottom-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl text-sm font-medium shadow-2xl flex items-center gap-2 max-w-[90vw]">
+    <span id="t-ico"></span>
+    <span id="t-msg"></span>
+  </div>
+
+  <script>
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').catch(() => {});
     }
-  } catch (err) {
-    console.error('checkDuplicate error:', err);
-    showToast('Lỗi kiểm tra trùng: ' + (err.message || 'Network error'), 'error');
-  }
-}
-
-// ─── Xuất dữ liệu ra CSV ────────────────────────────────────────
-async function exportCSV() {
-  try {
-    showToast('Đang xuất CSV…', 'info');
-    const params = new URLSearchParams({ action: 'export' });
-    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `quetma_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast('✓ Đã tải file CSV.', 'success');
-  } catch (err) {
-    console.error('exportCSV error:', err);
-    showToast('Lỗi xuất CSV: ' + (err.message || 'Network error'), 'error');
-  }
-}
-
-// ─── Hiển thị Dashboard (tất cả bản ghi) ────────────────────────
-async function showDashboard() {
-  const panel = document.getElementById('dashboard-panel');
-  const listEl = document.getElementById('dash-list');
-  const countEl = document.getElementById('dash-count');
-  listEl.innerHTML = '<li class="px-2 py-1 text-xs text-gray-400">Đang tải…</li>';
-  countEl.textContent = '–';
-  panel.classList.remove('hidden');
-
-  try {
-    const params = new URLSearchParams({ action: 'getAll' });
-    const res = await fetch(`${GAS_API}?${params}`, { redirect: 'follow' });
-    const data = await res.json();
-    if (data && data.success) {
-      countEl.textContent = data.count;
-      renderDashboard(data.data || []);
-    } else {
-      listEl.innerHTML = `<li class="px-2 py-1 text-xs text-red-400">${(data && data.message) || 'Lỗi lấy dữ liệu.'}</li>`;
-    }
-  } catch (err) {
-    console.error('showDashboard error:', err);
-    listEl.innerHTML = `<li class="px-2 py-1 text-xs text-red-400">Lỗi: ${err.message || 'Network error'}</li>`;
-  }
-}
-
-function renderDashboard(data) {
-  const listEl = document.getElementById('dash-list');
-  if (!data || data.length === 0) {
-    listEl.innerHTML = '<li class="px-2 py-1 text-xs text-gray-400">Chưa có bản ghi nào.</li>';
-    return;
-  }
-  const items = data.slice(0, 50);
-  listEl.innerHTML = items.map((row, i) => `
-    <li class="flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs border border-gray-700/30" style="background:rgba(255,255,255,.02);">
-      <span class="w-4 h-4 rounded-full flex items-center justify-center font-bold text-[10px] text-purple-300" style="background:rgba(139,92,246,.15);">${data.length - i}</span>
-      <span class="flex-1 font-mono font-semibold truncate text-cyan-300">${row['Mã thẻ'] || ''}</span>
-      <span class="text-gray-400 truncate max-w-[90px]">${row['Tên khách hàng'] || '—'}</span>
-      <span class="text-[10px] text-gray-500">${row['Thời gian quét'] || ''}</span>
-    </li>
-  `).join('');
-}
-</script>
+  </script>
+</body>
+</html>
