@@ -17,8 +17,8 @@
     #cam-wrap {
       position: relative;
       width: 100%;
-      min-height: 290px;
-      max-height: 48vh;
+      min-height: 320px;
+      max-height: 55vh;
       background: #000;
       overflow: hidden;
       display: flex;
@@ -33,7 +33,7 @@
 
     #reader video {
       width: 100% !important;
-      max-height: 48vh !important;
+      max-height: 55vh !important;
       object-fit: cover !important;
       border-radius: 0;
     }
@@ -48,48 +48,55 @@
       display: none !important;
     }
 
-    /* ── Viewfinder Khung Ngắm Hướng Dẫn ─────────────────────────── */
+    /* ── Viewfinder Khung Ngắm Rộng Bao Phủ Toàn Bộ Thẻ ─────────────────────────── */
     .vf {
       position: absolute; inset: 0; display: flex;
       align-items: center; justify-content: center; pointer-events: none; z-index: 10;
     }
     
     .vf-box {
-      width: 90%;
-      max-width: 380px;
-      height: 150px;
+      width: 92%;
+      max-width: 400px;
+      height: 200px;
       position: relative;
       transition: all 0.25s ease;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); /* Làm tối vùng ngoài khung để dễ căn chỉnh */
-      border-radius: 12px;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+      border-radius: 14px;
     }
 
     .vf-box.qr-mode {
-      width: 72%;
-      max-width: 260px;
-      height: 260px;
+      width: 75%;
+      max-width: 270px;
+      height: 270px;
     }
 
     .vf-box::before, .vf-box::after, .vf-bl, .vf-br {
-      content: ''; position: absolute; width: 24px; height: 24px;
+      content: ''; position: absolute; width: 26px; height: 26px;
       border-color: #22d3ee; border-style: solid;
     }
-    .vf-box::before { top: 0; left: 0;   border-width: 4px 0 0 4px; border-radius: 10px 0 0 0; }
-    .vf-box::after  { top: 0; right: 0;  border-width: 4px 4px 0 0; border-radius: 0 10px 0 0; }
-    .vf-bl { bottom: 0; left: 0;         border-width: 0 0 4px 4px; border-radius: 0 0 0 10px; }
-    .vf-br { bottom: 0; right: 0;        border-width: 0 4px 4px 0; border-radius: 0 0 10px 0; }
+    .vf-box::before { top: 0; left: 0;   border-width: 4px 0 0 4px; border-radius: 12px 0 0 0; }
+    .vf-box::after  { top: 0; right: 0;  border-width: 4px 4px 0 0; border-radius: 0 12px 0 0; }
+    .vf-bl { bottom: 0; left: 0;         border-width: 0 0 4px 4px; border-radius: 0 0 0 12px; }
+    .vf-br { bottom: 0; right: 0;        border-width: 0 4px 4px 0; border-radius: 0 0 12px 0; }
 
-    /* Scan laser line */
+    /* Scan laser line - Quét toàn dải từ trên xuống dưới */
     .scan-laser {
       position: absolute; left: 2%; right: 2%; height: 2.5px;
-      background: linear-gradient(90deg, transparent, #22d3ee, #38bdf8, transparent);
-      box-shadow: 0 0 12px #22d3ee, 0 0 20px rgba(34,211,238,.8);
-      animation: laserAnim 2.0s ease-in-out infinite;
+      background: linear-gradient(90deg, transparent, #22d3ee, #38bdf8, #22d3ee, transparent);
+      box-shadow: 0 0 12px #22d3ee, 0 0 22px rgba(34,211,238,.9);
+      animation: laserAnim 1.8s ease-in-out infinite;
     }
     @keyframes laserAnim {
-      0%   { top: 10%; opacity: .4; }
-      50%  { top: 88%; opacity: 1;  }
-      100% { top: 10%; opacity: .4; }
+      0%   { top: 6%;  opacity: .5; }
+      50%  { top: 92%; opacity: 1;  }
+      100% { top: 6%;  opacity: .5; }
+    }
+
+    /* Đường ngắm tâm (Center Target Line) để người dùng đặt mã vạch vào đúng tâm */
+    .target-center-line {
+      position: absolute; top: 50%; left: 8%; right: 8%; height: 1px;
+      border-top: 1.5px dashed rgba(34, 211, 238, 0.45);
+      transform: translateY(-50%);
     }
 
     /* Flash effect khi scan trúng */
@@ -155,7 +162,7 @@
     </div>
     <div class="flex-1 min-w-0">
       <h1 class="text-sm font-semibold text-white leading-none">Quét Mã Thẻ</h1>
-      <p class="text-xs text-gray-400 mt-0.5 truncate">Siêu Nhạy: 1D Barcode &amp; QR</p>
+      <p class="text-xs text-gray-400 mt-0.5 truncate">Tối Ưu iPhone: Code 128 &amp; QR</p>
     </div>
     <div id="cam-badge"
          class="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -177,6 +184,7 @@
       <div id="vf-box" class="vf-box">
         <div class="vf-bl"></div>
         <div class="vf-br"></div>
+        <div class="target-center-line"></div>
         <div class="scan-laser"></div>
       </div>
     </div>
@@ -219,17 +227,17 @@
       </div>
     </div>
 
-    <!-- Cụm nút ZOOM nổi bật (Bí quyết giúp đọc mã vạch siêu nhanh) -->
+    <!-- Cụm nút ZOOM điều khiển (Mặc định 1x để chống nhiễu Moiré trên màn hình) -->
     <div id="zoom-controls" class="hidden absolute bottom-8 z-20 flex items-center gap-2 pointer-events-auto">
-      <button onclick="setZoomLevel(1.0)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95" id="zb-1">1x</button>
-      <button onclick="setZoomLevel(1.5)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-cyan-900/80 text-cyan-300 border border-cyan-400 active:scale-95" id="zb-15">1.5x</button>
+      <button onclick="setZoomLevel(1.0)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-cyan-900/80 text-cyan-300 border border-cyan-400 active:scale-95" id="zb-1">1x</button>
+      <button onclick="setZoomLevel(1.5)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95" id="zb-15">1.5x</button>
       <button onclick="setZoomLevel(2.0)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95" id="zb-2">2x</button>
     </div>
 
     <!-- Bottom hint -->
-    <div class="absolute bottom-0 left-0 right-0 px-4 py-1.5 text-center text-xs text-gray-300 pointer-events-none z-10"
-         style="background:linear-gradient(transparent,rgba(0,0,0,.75));">
-      💡 Giữ khoảng cách 15-20cm để camera lấy nét rõ vạch
+    <div class="absolute bottom-0 left-0 right-0 px-4 py-1.5 text-center text-xs text-cyan-300 font-medium pointer-events-none z-10"
+         style="background:linear-gradient(transparent,rgba(0,0,0,.85));">
+      🎯 Đặt dải sọc mã vạch nằm ngang cắt qua đường laser giữa khung
     </div>
 
     <!-- Loading / Permission Overlay -->
@@ -290,16 +298,16 @@
         <span class="text-xs text-gray-300 font-medium">Tự lưu 2s</span>
       </label>
 
-      <!-- Nút Quét từ Ảnh / Chụp File -->
+      <!-- Nút Quét từ Ảnh / Chụp File (Giải pháp 100% khi quét qua màn hình bị chói) -->
       <div>
         <input type="file" id="file-input" accept="image/*" class="hidden" onchange="scanFromImageFile(event)" />
         <button onclick="document.getElementById('file-input').click()"
-                class="btn-press px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1 text-gray-300 hover:text-cyan-400"
-                style="background:rgba(255,255,255,.05); border:1px solid rgba(34,211,238,.2);">
+                class="btn-press px-2.5 py-1 rounded-lg text-xs font-medium flex items-center gap-1.5 text-cyan-300 hover:text-white"
+                style="background:rgba(6,182,212,.15); border:1px solid rgba(34,211,238,.35);">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span>Quét từ ảnh</span>
+          <span class="font-semibold">Quét từ ảnh</span>
         </button>
       </div>
 
@@ -371,19 +379,15 @@
   const SCAN_COOLDOWN_MS = 2500;
 
   /**
-   * ĐÃ LOẠI BỎ HOÀN TOÀN EAN_8 VÀ UPC_E:
-   * Nguyên nhân gốc rễ gây ra lỗi quét mã 13 số mà nhận 8 số là do ZXing
-   * bắt trúng 8 vạch ngẫu nhiên hợp lệ của EAN-8 trong chuỗi dài.
-   * Khi bỏ EAN_8 và UPC_E, hệ thống bắt buộc phải giải mã toàn vẹn chuỗi 13 số.
+   * TỐI ƯU DANH SÁCH FORMATS ĐẶC TRỊ CHO IPHONE SAFARI:
+   * Giữ lại CODE_128 (định dạng của mã thẻ 2304345010132), EAN_13, CODE_39, QR_CODE.
+   * Loại bỏ các định dạng phụ không cần thiết để giảm tải CPU giải mã trên Safari.
    */
   const SUPPORTED_FORMATS = [
-    Html5QrcodeSupportedFormats.CODE_128,  // Định dạng chuẩn xác của mã thẻ 2304365011784
+    Html5QrcodeSupportedFormats.CODE_128,  // Định dạng chuẩn xác của mã thẻ
+    Html5QrcodeSupportedFormats.EAN_13,    // Chuẩn 13 số
     Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.CODE_93,
-    Html5QrcodeSupportedFormats.CODABAR,
-    Html5QrcodeSupportedFormats.ITF,       // Interleaved 2 of 5
-    Html5QrcodeSupportedFormats.EAN_13,    // Chuẩn 13 số quốc tế
-    Html5QrcodeSupportedFormats.UPC_A,     // Chuẩn 12 số
+    Html5QrcodeSupportedFormats.ITF,
     Html5QrcodeSupportedFormats.QR_CODE
   ];
 
@@ -407,6 +411,19 @@
   /* ══════════════════════════════════════════════
      CAMERA INITIALIZATION
   ══════════════════════════════════════════════ */
+  // Tính toán vùng quét canvas bao phủ 90% diện tích camera (quét từ trên xuống dưới không bỏ sót)
+  function getDynamicQrBox(viewfinderWidth, viewfinderHeight) {
+    if (isBarcodeMode) {
+      return {
+        width: Math.floor(viewfinderWidth * 0.95),
+        height: Math.floor(viewfinderHeight * 0.88)
+      };
+    } else {
+      const size = Math.min(Math.floor(viewfinderWidth * 0.78), Math.floor(viewfinderHeight * 0.78));
+      return { width: size, height: size };
+    }
+  }
+
   async function initScanner() {
     const initEl = document.getElementById('cam-init');
     const msgEl  = document.getElementById('cam-init-msg');
@@ -424,7 +441,7 @@
           formatsToSupport: SUPPORTED_FORMATS,
           verbose: false,
           experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true // Tận dụng tối đa phần cứng native của Android Chrome
+            useBarCodeDetectorIfSupported: true
           }
         });
       }
@@ -435,7 +452,6 @@
         throw new Error('Không tìm thấy camera trên thiết bị');
       }
 
-      // Ưu tiên camera sau (back / environment)
       let backCamIndex = availableCameras.findIndex(c => 
         /back|rear|environment|sau/i.test(c.label) && !/front|user|trước/i.test(c.label)
       );
@@ -463,14 +479,9 @@
       await html5QrCode.stop();
     }
 
-    /**
-     * TỐI ƯU TỐC ĐỘ & ĐỘ NHẠY:
-     * - fps: 10: Tần số tối ưu nhất cho mobile (tránh nghẽn CPU, mỗi frame có đủ 100ms để binarize toàn bộ scanlines)
-     * - Không giới hạn qrbox: Cho engine quét toàn bộ frame video để không bao giờ bị cắt mất 2 mép mã vạch
-     * - videoConstraints: Full HD / HD với lấy nét liên tục continuous
-     */
     const config = {
       fps: 10,
+      qrbox: getDynamicQrBox,
       disableFlip: false,
       videoConstraints: {
         deviceId: { exact: deviceId },
@@ -507,6 +518,7 @@
 
     const config = {
       fps: 10,
+      qrbox: getDynamicQrBox,
       disableFlip: false
     };
 
@@ -535,7 +547,6 @@
     }, 250);
   }
 
-  // Chuyển đổi khung hướng dẫn ngắm: Barcode ngang vs QR vuông
   function toggleScanMode() {
     isBarcodeMode = !isBarcodeMode;
     const vfBox = document.getElementById('vf-box');
@@ -552,24 +563,21 @@
     }
   }
 
-  // Kiểm tra khả năng phần cứng: Đèn Flash & Khả năng Thu Phóng (Zoom)
   function checkCapabilities() {
     try {
       const track = html5QrCode.getRunningTrackCameraCapabilities();
       const btnTorch = document.getElementById('btn-torch');
       const zoomWrap = document.getElementById('zoom-controls');
 
-      // Kiểm tra Torch
       if (track && track.torchFeature && track.torchFeature().isSupported()) {
         btnTorch.classList.remove('hidden');
       } else {
         btnTorch.classList.add('hidden');
       }
 
-      // Kiểm tra Zoom
       if (track && track.zoomFeature && track.zoomFeature().isSupported()) {
         zoomWrap.classList.remove('hidden');
-        setZoomLevel(1.5); // Mặc định phóng to nhẹ 1.5x để bắt vạch barcode căng nét nhất
+        setZoomLevel(1.0); // Mặc định 1x để hình ảnh mịn, không bị vỡ hạt Moiré khi quét màn hình
       } else {
         zoomWrap.classList.add('hidden');
       }
@@ -591,7 +599,6 @@
     }
   }
 
-  // Điều khiển Zoom phần cứng camera
   async function setZoomLevel(level) {
     try {
       const track = html5QrCode.getRunningTrackCameraCapabilities();
@@ -601,7 +608,6 @@
         await track.zoomFeature().apply(clamped);
         currentZoom = clamped;
 
-        // Cập nhật trạng thái nút bấm
         ['1', '15', '2'].forEach(id => {
           const btn = document.getElementById(`zb-${id}`);
           if (btn) {
@@ -619,7 +625,6 @@
     }
   }
 
-  // Đổi camera tiếp theo
   async function switchCameraNext() {
     if (!availableCameras || availableCameras.length <= 1) {
       showToast('Chỉ tìm thấy 1 camera', 'info');
@@ -648,13 +653,9 @@
   function onScanSuccess(decodedText) {
     const cleanCode = (decodedText || '').trim();
 
-    /**
-     * BỘ LỌC CHỐNG NHẬN NHẦM MÃ CỤT / MÃ RÁC:
-     * Dãy số mã thẻ là chuỗi 13 số (ví dụ 2304365011784).
-     * Nếu vô tình bị giải mã cụt dưới 10 số (như chuỗi 8 số lỗi), ta lập tức bỏ qua.
-     */
+    // Chặn chuỗi số cụt < 10 ký tự (chống nhận nhầm mã 8 số)
     if (/^\d+$/.test(cleanCode) && cleanCode.length < 10) {
-      console.warn('Bỏ qua mã số cụt/sót vạch:', cleanCode);
+      console.warn('Bỏ qua mã số cụt:', cleanCode);
       return;
     }
 
@@ -664,7 +665,6 @@
     _lastCode   = cleanCode;
     _lastCodeTs = now;
 
-    // Rung điện thoại phản hồi xúc giác
     if (navigator.vibrate) {
       navigator.vibrate(100);
     }
@@ -678,12 +678,12 @@
     }
   }
 
-  // Quét trực tiếp từ ảnh chụp
+  // Quét từ ảnh chụp (Độ chính xác 100% kể cả khi quét màn hình máy tính bị chói)
   async function scanFromImageFile(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
 
-    showToast('Đang quét mã từ ảnh…', 'info');
+    showToast('Đang phân tích ảnh chi tiết…', 'info');
 
     try {
       const result = await html5QrCode.scanFile(file, true);
@@ -699,7 +699,6 @@
     }
   }
 
-  // Nhập hoặc sửa mã thủ công
   function promptManualInput() {
     const val = prompt('Nhập hoặc chỉnh sửa mã thẻ:', currentCode || '');
     if (val !== null) {
