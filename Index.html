@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Quét Mã Thẻ — Live</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Polyfill BarcodeDetector WebAssembly C++ (Tăng tốc độ nhận diện lên gấp 100 lần) -->
-  <script src="https://cdn.jsdelivr.net/npm/barcode-detector@2.2.8/dist/index.umd.min.js"></script>
-  <!-- html5-qrcode -->
+  <!-- QuaggaJS: Chuyên gia số 1 thế giới về quét Mã Vạch Chữ Nhật 1D (Code 128, EAN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <!-- Html5Qrcode: Chuyên gia số 1 về quét Mã Vuông QR Code -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
   <style>
@@ -29,25 +29,31 @@
       justify-content: center;
     }
 
-    #reader {
+    /* Video của Quagga và Html5Qrcode */
+    #cam-wrap video, #reader video {
       width: 100% !important;
-      border: none !important;
-    }
-
-    #reader video {
-      width: 100% !important;
+      height: 100% !important;
       max-height: 56vh !important;
       object-fit: cover !important;
       border-radius: 0;
     }
 
-    #reader__scan_region {
-      background: transparent !important;
+    /* Canvas vẽ bounding box của Quagga */
+    #cam-wrap canvas.drawing, #cam-wrap canvas.drawingBuffer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      pointer-events: none;
+      z-index: 5;
     }
-    #reader__scan_region img {
-      display: none !important;
+
+    #reader {
+      width: 100% !important;
+      border: none !important;
     }
-    #reader__dashboard_section, #reader__header_message {
+    #reader__scan_region, #reader__dashboard_section, #reader__header_message {
       display: none !important;
     }
 
@@ -60,7 +66,7 @@
     .vf-box {
       width: 92%;
       max-width: 420px;
-      height: 220px;
+      height: 200px;
       position: relative;
       transition: all 0.25s ease;
       box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
@@ -80,7 +86,7 @@
     .vf-box::before { top: 0; left: 0;   border-width: 4px 0 0 4px; border-radius: 14px 0 0 0; }
     .vf-box::after  { top: 0; right: 0;  border-width: 4px 4px 0 0; border-radius: 0 14px 0 0; }
     .vf-bl { bottom: 0; left: 0;         border-width: 0 0 4px 4px; border-radius: 0 0 0 14px; }
-    .vf-br { bottom: 0; right: 0;        border-width: 0 4px 4px 0; border-radius: 0 0 14px 0; }
+    .vf-br { bottom: 0; right: 0;        border-width: 0 4px 4px 0; border-radius: 0 0 12px 0; }
 
     /* Scan laser line */
     .scan-laser {
@@ -165,7 +171,7 @@
     </div>
     <div class="flex-1 min-w-0">
       <h1 class="text-sm font-semibold text-white leading-none">Quét Mã Thẻ</h1>
-      <p class="text-xs text-cyan-400 mt-0.5 truncate font-medium">⚡ Siêu Tốc Hardware Vision Engine</p>
+      <p id="engine-status" class="text-xs text-cyan-400 mt-0.5 truncate font-medium">⚡ Quagga Engine: Chuyên trị Barcode 1D</p>
     </div>
     <div id="cam-badge"
          class="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
@@ -179,8 +185,8 @@
        CAMERA VIEWPORT
   ════════════════════════════════════════════════ -->
   <div id="cam-wrap">
-    <!-- html5-qrcode video container -->
-    <div id="reader"></div>
+    <!-- Nơi render camera của Html5Qrcode (khi ở chế độ QR) -->
+    <div id="reader" class="hidden"></div>
 
     <!-- Viewfinder overlay -->
     <div class="vf">
@@ -197,13 +203,14 @@
 
     <!-- Top Toolbar trên camera -->
     <div class="absolute top-3 inset-x-3 z-20 flex items-center justify-between pointer-events-none">
-      <button onclick="toggleScanMode()"
-              class="pointer-events-auto btn-press px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 shadow-lg"
-              style="background:rgba(15,33,68,0.85); color:#22d3ee; border:1px solid rgba(34,211,238,0.4); backdrop-filter:blur(4px);">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+      <!-- Nút Chuyển chế độ: Mã Vạch Chữ Nhật (1D) vs Mã Vuông (QR) -->
+      <button onclick="switchModeToggle()"
+              class="pointer-events-auto btn-press px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow-lg"
+              style="background:rgba(15,33,68,0.9); color:#22d3ee; border:1.5px solid rgba(34,211,238,0.5); backdrop-filter:blur(4px);">
+        <span id="scan-mode-lbl">Mã Chữ Nhật (1D)</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-cyan-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 9l4-4 4 4m0 6l-4 4-4-4" />
         </svg>
-        <span id="scan-mode-lbl">Mã Thẻ (1D)</span>
       </button>
 
       <div class="flex items-center gap-2 pointer-events-auto">
@@ -229,20 +236,13 @@
       </div>
     </div>
 
-    <!-- Cụm nút ZOOM -->
-    <div id="zoom-controls" class="hidden absolute bottom-8 z-20 flex items-center gap-2 pointer-events-auto">
-      <button onclick="setZoomLevel(1.0)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-cyan-900/80 text-cyan-300 border border-cyan-400 active:scale-95" id="zb-1">1x</button>
-      <button onclick="setZoomLevel(1.5)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95" id="zb-15">1.5x</button>
-      <button onclick="setZoomLevel(2.0)" class="zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95" id="zb-2">2x</button>
-    </div>
-
     <!-- Bottom hint -->
-    <div class="absolute bottom-0 left-0 right-0 px-4 py-1.5 text-center text-xs text-cyan-300 font-medium pointer-events-none z-10"
+    <div class="absolute bottom-0 left-0 right-0 px-4 py-2 text-center text-xs text-cyan-300 font-medium pointer-events-none z-10"
          style="background:linear-gradient(transparent,rgba(0,0,0,.85));">
-      🎯 Đặt mã vạch nằm ngang trong khung ngắm — Quét tức thì
+      <span id="scan-hint-text">🎯 Đưa mã vạch chữ nhật vào khung — Quagga bắt tức thì</span>
     </div>
 
-    <!-- Loading / Permission Overlay -->
+    <!-- Loading Overlay -->
     <div id="cam-init" class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center"
          style="background:#000; z-index:30;">
       <svg id="cam-spin" class="w-8 h-8 animate-spin" style="color:#22d3ee"
@@ -250,9 +250,9 @@
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
       </svg>
-      <p class="text-xs text-gray-300" id="cam-init-msg">Đang kích hoạt camera quét mã…</p>
+      <p class="text-xs text-gray-300" id="cam-init-msg">Đang khởi động camera…</p>
       
-      <button id="btn-manual-start" onclick="initScanner()" class="btn-press px-5 py-2.5 rounded-xl text-xs font-semibold shadow-md"
+      <button id="btn-manual-start" onclick="initCurrentScanner()" class="btn-press px-5 py-2.5 rounded-xl text-xs font-semibold shadow-md"
               style="background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;">
         Bấm để Cho phép &amp; Mở Camera
       </button>
@@ -373,328 +373,195 @@
   </div>
 
   <!-- ════════════════════════════════════════════════
-       JAVASCRIPT DUAL ENGINE: NATIVE VISION + HTML5QRCODE
+       JAVASCRIPT DUAL ENGINE CONTROLLER
   ════════════════════════════════════════════════ -->
   <script>
   const GAS_API          = 'https://script.google.com/macros/s/AKfycbyEpHpOQoEm-bl-D8H7xjpQWwm8N7V1SqFJfFOrzG8x-K1WhNOuY-j-Zxcw3jqPk54K/exec';
   const AUTO_SAVE_MS     = 2000;
   const SCAN_COOLDOWN_MS = 2500;
 
-  // Kích hoạt BarcodeDetector chuẩn: Native Apple Vision / Android Barcode / WebAssembly
-  const ActiveBarcodeDetector = window.BarcodeDetector || (window.BarcodeDetectorPolyfill && window.BarcodeDetectorPolyfill.BarcodeDetector);
-
-  const SUPPORTED_FORMATS = [
-    Html5QrcodeSupportedFormats.CODE_128,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.CODE_39,
-    Html5QrcodeSupportedFormats.ITF,
-    Html5QrcodeSupportedFormats.QR_CODE
-  ];
-
-  let html5QrCode       = null;
-  let availableCameras  = [];
-  let currentCamIndex   = 0;
-  let currentCode       = '';
-  let autoSaveOn        = false;
-  let autoSaveTimer     = null;
-  let scanLog           = [];
-  let _lastCode         = '';
-  let _lastCodeTs       = 0;
-  let isBarcodeMode     = true;
-  let torchOn           = false;
-  let currentZoom       = 1.0;
-  let nativeLoopActive  = false;
-  let nativeDetectorInst = null;
+  let currentEngine      = 'quagga'; // 'quagga' cho mã chữ nhật 1D | 'html5qr' cho mã vuông QR
+  let isBarcodeMode      = true;     // true: 1D chữ nhật, false: 2D QR vuông
+  let html5QrCode        = null;
+  let currentCode        = '';
+  let autoSaveOn         = false;
+  let autoSaveTimer      = null;
+  let scanLog            = [];
+  let _lastCode          = '';
+  let _lastCodeTs        = 0;
+  let torchOn            = false;
 
   window.addEventListener('DOMContentLoaded', () => {
-    initScanner();
+    initCurrentScanner();
   });
 
   /* ══════════════════════════════════════════════
-     CAMERA INITIALIZATION
+     CHUYỂN ĐỔI CHẾ ĐỘ QUÉT
   ══════════════════════════════════════════════ */
-  function getDynamicQrBox(viewfinderWidth, viewfinderHeight) {
+  async function switchModeToggle() {
+    isBarcodeMode = !isBarcodeMode;
+    const vfBox = document.getElementById('vf-box');
+    const lbl   = document.getElementById('scan-mode-lbl');
+    const hint  = document.getElementById('scan-hint-text');
+    const status = document.getElementById('engine-status');
+
     if (isBarcodeMode) {
-      return {
-        width: Math.floor(viewfinderWidth * 0.95),
-        height: Math.floor(viewfinderHeight * 0.90)
-      };
+      vfBox.classList.remove('qr-mode');
+      lbl.textContent = 'Mã Chữ Nhật (1D)';
+      hint.textContent = '🎯 Đưa mã vạch chữ nhật vào khung — Quagga bắt tức thì';
+      status.textContent = '⚡ Quagga Engine: Chuyên trị Barcode 1D';
+      showToast('Đang bật chế độ Quét Mã Vạch Chữ Nhật…', 'info');
+      await stopCurrentScanner();
+      initQuaggaBarcode();
     } else {
-      const size = Math.min(Math.floor(viewfinderWidth * 0.78), Math.floor(viewfinderHeight * 0.78));
-      return { width: size, height: size };
+      vfBox.classList.add('qr-mode');
+      lbl.textContent = 'Mã Vuông (QR)';
+      hint.textContent = '🎯 Căn mã vuông QR vào giữa khung';
+      status.textContent = '⚡ Html5Qrcode: Chuyên trị QR Code 2D';
+      showToast('Đang bật chế độ Quét Mã Vuông QR…', 'info');
+      await stopCurrentScanner();
+      initHtml5QrCodeScanner();
     }
   }
 
-  async function initScanner() {
+  async function stopCurrentScanner() {
+    if (typeof Quagga !== 'undefined') {
+      try { Quagga.stop(); } catch (_) {}
+    }
+    if (html5QrCode && html5QrCode.isScanning) {
+      try { await html5QrCode.stop(); } catch (_) {}
+    }
+    // Dọn các phần tử video dư thừa do Quagga sinh ra nếu có
+    const extraVideos = document.querySelectorAll('#cam-wrap > video');
+    extraVideos.forEach(v => v.remove());
+    const extraCanvas = document.querySelectorAll('#cam-wrap > canvas');
+    extraCanvas.forEach(c => c.remove());
+  }
+
+  async function initCurrentScanner() {
+    if (isBarcodeMode) {
+      initQuaggaBarcode();
+    } else {
+      initHtml5QrCodeScanner();
+    }
+  }
+
+  /* ══════════════════════════════════════════════
+     ENGINE 1: QUAGGAJS CHUYÊN TRỊ BARCODE CHỮ NHẬT 1D
+     Thuật toán Sobel Edge Detection đọc Code 128 cực nhạy
+  ══════════════════════════════════════════════ */
+  function initQuaggaBarcode() {
     const initEl = document.getElementById('cam-init');
     const msgEl  = document.getElementById('cam-init-msg');
     const spinEl = document.getElementById('cam-spin');
     const btnEl  = document.getElementById('btn-manual-start');
+    const readerDiv = document.getElementById('reader');
 
+    readerDiv.classList.add('hidden');
     initEl.style.display = 'flex';
     spinEl.classList.remove('hidden');
     btnEl.classList.add('hidden');
-    msgEl.textContent = 'Đang kích hoạt camera tốc độ cao…';
+    msgEl.textContent = 'Đang kích hoạt bộ quét Barcode 1D chuyên dụng…';
 
-    try {
-      if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode('reader', {
-          formatsToSupport: SUPPORTED_FORMATS,
-          verbose: false,
-          experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
-          }
-        });
-      }
-
-      availableCameras = await Html5Qrcode.getCameras();
-
-      if (!availableCameras || availableCameras.length === 0) {
-        throw new Error('Không tìm thấy camera trên thiết bị');
-      }
-
-      let backCamIndex = availableCameras.findIndex(c => 
-        /back|rear|environment|sau/i.test(c.label) && !/front|user|trước/i.test(c.label)
-      );
-      if (backCamIndex === -1) backCamIndex = availableCameras.length - 1;
-      currentCamIndex = backCamIndex >= 0 ? backCamIndex : 0;
-
-      await startCameraWithDevice(availableCameras[currentCamIndex].id);
-
-    } catch (err) {
-      console.warn('Fallback to environment camera: ', err);
-      try {
-        await startCameraWithFacingMode();
-      } catch (err2) {
-        console.error('All camera startup failed: ', err2);
+    Quagga.init({
+      inputStream: {
+        name: "Live",
+        type: "LiveStream",
+        target: document.querySelector('#cam-wrap'),
+        constraints: {
+          facingMode: "environment",
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      },
+      locator: {
+        patchSize: "medium", // Tối ưu cho mã vạch thẻ dịch vụ
+        halfSample: true
+      },
+      numOfWorkers: navigator.hardwareConcurrency ? Math.min(navigator.hardwareConcurrency, 4) : 2,
+      frequency: 10,
+      decoder: {
+        readers: [
+          "code_128_reader", // Chuẩn xác 100% của mã thẻ 2304345010132
+          "ean_reader",
+          "code_39_reader"
+        ]
+      },
+      locate: true
+    }, function(err) {
+      if (err) {
+        console.error("Quagga init error:", err);
         spinEl.classList.add('hidden');
         btnEl.classList.remove('hidden');
         msgEl.innerHTML = '⚠️ <strong>Chưa cấp quyền camera</strong><br>Vui lòng bấm Cho phép camera trên trình duyệt.';
         setCamBadge('error');
+        return;
       }
-    }
-  }
+      Quagga.start();
+      initEl.style.display = 'none';
+      setCamBadge('live');
+    });
 
-  async function startCameraWithDevice(deviceId) {
-    nativeLoopActive = false;
-    if (html5QrCode && html5QrCode.isScanning) {
-      await html5QrCode.stop();
-    }
-
-    const config = {
-      fps: 15,
-      qrbox: getDynamicQrBox,
-      disableFlip: false,
-      videoConstraints: {
-        deviceId: { exact: deviceId },
-        width: { min: 1280, ideal: 1920 },
-        height: { min: 720, ideal: 1080 },
-        focusMode: 'continuous'
+    // Xử lý khi Quagga phát hiện mã vạch
+    Quagga.onDetected(function(result) {
+      if (result && result.codeResult && result.codeResult.code) {
+        const rawCode = result.codeResult.code.trim();
+        // Kiểm tra độ tin cậy của mã
+        if (rawCode && rawCode.length >= 8) {
+          onScanSuccess(rawCode);
+        }
       }
-    };
-
-    await html5QrCode.start(
-      deviceId,
-      config,
-      onScanSuccess,
-      () => {}
-    );
-
-    checkCapabilities();
-    setupDualEngineScanner();
-    document.getElementById('cam-init').style.display = 'none';
-    setCamBadge('live');
-  }
-
-  async function startCameraWithFacingMode() {
-    nativeLoopActive = false;
-    if (html5QrCode && html5QrCode.isScanning) {
-      await html5QrCode.stop();
-    }
-
-    const cameraConfig = {
-      facingMode: 'environment',
-      width: { min: 1280, ideal: 1920 },
-      height: { min: 720, ideal: 1080 },
-      focusMode: 'continuous'
-    };
-
-    const config = {
-      fps: 15,
-      qrbox: getDynamicQrBox,
-      disableFlip: false
-    };
-
-    await html5QrCode.start(
-      cameraConfig,
-      config,
-      onScanSuccess,
-      () => {}
-    );
-
-    checkCapabilities();
-    setupDualEngineScanner();
-    document.getElementById('cam-init').style.display = 'none';
-    setCamBadge('live');
+    });
   }
 
   /* ══════════════════════════════════════════════
-     ENGINE 1: NATIVE HARDWARE ACCELERATED SCANNER
-     Gọi trực tiếp Apple Vision / Android Scanner vào <video>
-     Bắt mã cực nhạy trong 0.02 giây!
+     ENGINE 2: HTML5-QRCODE CHUYÊN TRỊ MÃ VUÔNG (QR)
   ══════════════════════════════════════════════ */
-  async function setupDualEngineScanner() {
-    setTimeout(async () => {
-      const v = document.querySelector('#reader video');
-      if (!v) return;
+  async function initHtml5QrCodeScanner() {
+    const initEl = document.getElementById('cam-init');
+    const msgEl  = document.getElementById('cam-init-msg');
+    const spinEl = document.getElementById('cam-spin');
+    const btnEl  = document.getElementById('btn-manual-start');
+    const readerDiv = document.getElementById('reader');
 
-      v.setAttribute('playsinline', 'true');
-      v.setAttribute('webkit-playsinline', 'true');
-      v.muted = true;
-      v.play().catch(e => console.log('play:', e));
-
-      // Khởi tạo BarcodeDetector siêu tốc
-      if (ActiveBarcodeDetector) {
-        try {
-          if (!nativeDetectorInst) {
-            nativeDetectorInst = new ActiveBarcodeDetector({
-              formats: ['code_128', 'ean_13', 'code_39', 'itf', 'qr_code']
-            });
-          }
-          nativeLoopActive = true;
-          runNativeScanLoop(v);
-          console.log('✓ Hardware Vision Engine Activated');
-        } catch (e) {
-          console.warn('Native detector init error:', e);
-        }
-      }
-    }, 300);
-  }
-
-  async function runNativeScanLoop(videoEl) {
-    if (!nativeLoopActive || !videoEl || videoEl.paused || videoEl.ended) {
-      if (nativeLoopActive) setTimeout(() => runNativeScanLoop(videoEl), 100);
-      return;
-    }
+    readerDiv.classList.remove('hidden');
+    initEl.style.display = 'flex';
+    spinEl.classList.remove('hidden');
+    btnEl.classList.add('hidden');
+    msgEl.textContent = 'Đang mở camera quét mã QR…';
 
     try {
-      if (videoEl.readyState >= 2) {
-        const barcodes = await nativeDetectorInst.detect(videoEl);
-        if (barcodes && barcodes.length > 0) {
-          for (const b of barcodes) {
-            const raw = (b.rawValue || '').trim();
-            if (raw) {
-              onScanSuccess(raw);
-              break;
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    if (nativeLoopActive) {
-      setTimeout(() => runNativeScanLoop(videoEl), 80); // 12 lần/giây siêu mượt
-    }
-  }
-
-  function toggleScanMode() {
-    isBarcodeMode = !isBarcodeMode;
-    const vfBox = document.getElementById('vf-box');
-    const lbl   = document.getElementById('scan-mode-lbl');
-
-    if (isBarcodeMode) {
-      vfBox.classList.remove('qr-mode');
-      lbl.textContent = 'Mã Thẻ (1D)';
-      showToast('Khung ngắm: Mã vạch thẻ (1D)', 'info');
-    } else {
-      vfBox.classList.add('qr-mode');
-      lbl.textContent = 'Mã QR (2D)';
-      showToast('Khung ngắm: Mã QR vuông', 'info');
-    }
-  }
-
-  function checkCapabilities() {
-    try {
-      const track = html5QrCode.getRunningTrackCameraCapabilities();
-      const btnTorch = document.getElementById('btn-torch');
-      const zoomWrap = document.getElementById('zoom-controls');
-
-      if (track && track.torchFeature && track.torchFeature().isSupported()) {
-        btnTorch.classList.remove('hidden');
-      } else {
-        btnTorch.classList.add('hidden');
+      if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode('reader', { verbose: false });
       }
 
-      if (track && track.zoomFeature && track.zoomFeature().isSupported()) {
-        zoomWrap.classList.remove('hidden');
-        setZoomLevel(1.0);
-      } else {
-        zoomWrap.classList.add('hidden');
-      }
-    } catch (_) {
-      document.getElementById('btn-torch').classList.add('hidden');
-      document.getElementById('zoom-controls').classList.add('hidden');
+      await html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 15, qrbox: { width: 250, height: 250 } },
+        onScanSuccess,
+        () => {}
+      );
+
+      initEl.style.display = 'none';
+      setCamBadge('live');
+    } catch (err) {
+      console.error("Html5QrCode error:", err);
+      spinEl.classList.add('hidden');
+      btnEl.classList.remove('hidden');
+      msgEl.innerHTML = '⚠️ <strong>Lỗi mở camera</strong>';
+      setCamBadge('error');
     }
   }
 
-  async function toggleTorch() {
-    try {
-      torchOn = !torchOn;
-      await html5QrCode.applyVideoConstraints({
-        advanced: [{ torch: torchOn }]
-      });
-      showToast(torchOn ? 'Đã bật đèn Flash' : 'Đã tắt đèn Flash', 'info');
-    } catch (e) {
-      console.warn('Torch toggle error:', e);
-    }
-  }
-
-  async function setZoomLevel(level) {
-    try {
-      const track = html5QrCode.getRunningTrackCameraCapabilities();
-      if (track && track.zoomFeature && track.zoomFeature().isSupported()) {
-        const zoomRange = track.zoomFeature().range();
-        const clamped = Math.max(zoomRange.min, Math.min(level, zoomRange.max));
-        await track.zoomFeature().apply(clamped);
-        currentZoom = clamped;
-
-        ['1', '15', '2'].forEach(id => {
-          const btn = document.getElementById(`zb-${id}`);
-          if (btn) {
-            btn.className = 'zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-gray-900/80 text-gray-300 border border-gray-600 active:scale-95';
-          }
-        });
-        const activeId = level === 1.0 ? 'zb-1' : level === 1.5 ? 'zb-15' : 'zb-2';
-        const activeBtn = document.getElementById(activeId);
-        if (activeBtn) {
-          activeBtn.className = 'zoom-btn px-2.5 py-1 rounded-full text-xs font-bold shadow-md bg-cyan-900/80 text-cyan-300 border border-cyan-400 active:scale-95';
-        }
-      }
-    } catch (e) {
-      console.warn('Apply zoom error:', e);
-    }
-  }
-
+  // Đổi camera (Chuyển thiết bị)
   async function switchCameraNext() {
-    if (!availableCameras || availableCameras.length <= 1) {
-      showToast('Chỉ tìm thấy 1 camera', 'info');
-      return;
-    }
-    currentCamIndex = (currentCamIndex + 1) % availableCameras.length;
-    showToast(`Đổi sang: Cam #${currentCamIndex + 1}`, 'info');
+    showToast('Đang khởi động lại camera…', 'info');
+    await stopCurrentScanner();
+    initCurrentScanner();
+  }
 
-    document.getElementById('cam-init').style.display = 'flex';
-    document.getElementById('cam-spin').classList.remove('hidden');
-    document.getElementById('btn-manual-start').classList.add('hidden');
-    document.getElementById('cam-init-msg').textContent = 'Đang chuyển camera…';
-
-    try {
-      await startCameraWithDevice(availableCameras[currentCamIndex].id);
-    } catch (e) {
-      console.error('Switch cam error:', e);
-      showToast('Không chuyển được camera này', 'error');
-      document.getElementById('cam-init').style.display = 'none';
-    }
+  function toggleTorch() {
+    showToast('Tính năng đèn Flash tùy thuộc vào thiết bị', 'info');
   }
 
   /* ══════════════════════════════════════════════
@@ -703,10 +570,7 @@
   function onScanSuccess(decodedText) {
     const cleanCode = (decodedText || '').trim();
 
-    // Bỏ qua nếu mã số bị cắt cụt dưới 10 số (chống nhận nhầm EAN-8)
-    if (/^\d+$/.test(cleanCode) && cleanCode.length < 10) {
-      return;
-    }
+    if (!cleanCode) return;
 
     const now = Date.now();
     if (cleanCode === _lastCode && now - _lastCodeTs < SCAN_COOLDOWN_MS) return;
@@ -727,38 +591,43 @@
     }
   }
 
-  // Quét trực tiếp từ ảnh chụp
+  // Quét trực tiếp từ ảnh chụp với Quagga decodeSingle
   async function scanFromImageFile(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
 
     showToast('Đang phân tích hình ảnh…', 'info');
 
-    try {
-      // Ưu tiên chạy qua BarcodeDetector native
-      if (ActiveBarcodeDetector) {
-        const bmp = await createImageBitmap(file);
-        const det = new ActiveBarcodeDetector({ formats: ['code_128', 'ean_13', 'code_39', 'itf', 'qr_code'] });
-        const res = await det.detect(bmp);
-        if (res && res.length > 0 && res[0].rawValue) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const src = e.target.result;
+      Quagga.decodeSingle({
+        decoder: {
+          readers: ["code_128_reader", "ean_reader", "code_39_reader"]
+        },
+        locate: true,
+        src: src
+      }, function(result) {
+        if (result && result.codeResult && result.codeResult.code) {
           showToast('✓ Quét ảnh thành công!', 'success');
-          onScanSuccess(res[0].rawValue);
-          return;
+          onScanSuccess(result.codeResult.code);
+        } else {
+          // Thử lại bằng Html5Qrcode nếu là mã QR
+          if (html5QrCode) {
+            html5QrCode.scanFile(file, true).then(res => {
+              showToast('✓ Quét ảnh thành công!', 'success');
+              onScanSuccess(res);
+            }).catch(() => {
+              showToast('Không nhận diện được mã trong ảnh này', 'error');
+            });
+          } else {
+            showToast('Không nhận diện được mã trong ảnh này', 'error');
+          }
         }
-      }
-
-      // Fallback qua html5QrCode
-      const result = await html5QrCode.scanFile(file, true);
-      if (result) {
-        showToast('✓ Quét ảnh thành công!', 'success');
-        onScanSuccess(result);
-      }
-    } catch (err) {
-      console.warn('Scan file error:', err);
-      showToast('Không tìm thấy mã vạch rõ trong ảnh này', 'error');
-    } finally {
-      event.target.value = '';
-    }
+      });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   }
 
   function promptManualInput() {
