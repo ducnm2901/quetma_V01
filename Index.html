@@ -215,29 +215,54 @@ async function initScanner() {
     if (!html5QrCode) {
       html5QrCode = new Html5Qrcode('reader', { verbose: false });
     }
-    await html5QrCode.start(
-      { facingMode: 'environment' },
-      {
-        fps: 15,
-        qrbox: { width: 250, height: 250 },
-        formatsToSupport: [
-          Html5QrcodeSupportedFormats.EAN_13,
-          Html5QrcodeSupportedFormats.CODE_128,
-          Html5QrcodeSupportedFormats.QR_CODE
-        ]
-      },
-      onScanSuccess,
-      () => {}
-    );
-    initEl.style.display = 'none';
-    setCamBadge('live');
+    // Thử camera trước (environment) trước, nếu lỗi thì thử camera sau (user)
+    let started = false;
+    try {
+      await startScanner('environment');
+      started = true;
+    } catch (errEnv) {
+      console.warn('Camera trước lỗi, thử camera sau:', errEnv.message);
+      try {
+        await startScanner('user');
+        started = true;
+      } catch (errUser) {
+        throw errUser;
+      }
+    }
+    if (started) {
+      initEl.style.display = 'none';
+      setCamBadge('live');
+    }
   } catch (err) {
     console.error('Html5Qrcode error:', err);
     spinEl.classList.add('hidden');
     btnEl.classList.remove('hidden');
-    msgEl.innerHTML = '⚠️ <strong>Lỗi mở camera</strong><br>Vui lòng cấp quyền truy cập camera.';
+    const msg = err && err.message ? err.message : '';
+    const isPermission = /permission|not allowed|denied/i.test(msg);
+    if (isPermission) {
+      msgEl.innerHTML = '🔒 <strong>Chưa cấp quyền camera</strong><br>Vui lòng chọn “Cho phép” khi trình duyệt hỏi, hoặc cài đặt trong trình duyệt.';
+    } else {
+      msgEl.innerHTML = '⚠️ <strong>Không mở được camera</strong><br>Vui lòng bấm “Thử lại” hoặc kiểm tra kết nối internet.';
+    }
     setCamBadge('error');
   }
+}
+
+async function startScanner(facingMode) {
+  await html5QrCode.start(
+    { facingMode: facingMode },
+    {
+      fps: 15,
+      qrbox: { width: 250, height: 250 },
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.QR_CODE
+      ]
+    },
+    onScanSuccess,
+    () => {}
+  );
 }
 
 async function stopCurrentScanner() {
